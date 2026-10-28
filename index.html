@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Tu nombre en las estrellas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#000;color:#e6ecff;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  canvas{display:block;position:fixed;inset:0;width:100%;height:100%}
+
+  #intro{position:fixed;inset:0;z-index:30;background:radial-gradient(ellipse at 50% 40%,#0b1030 0,#02030a 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;text-align:center;padding:30px;transition:opacity 1.4s,visibility 1.4s}
+  #intro.fuera{opacity:0;visibility:hidden}
+  #intro .nombre{font-family:'Great Vibes','Brush Script MT',cursive;font-size:clamp(3rem,16vw,6rem);line-height:1;color:#fff;text-shadow:0 0 18px rgba(150,180,255,.9),0 0 46px rgba(110,140,255,.6)}
+  #intro p{max-width:320px;opacity:.85;line-height:1.5;font-size:1rem}
+  #intro button{border:1px solid rgba(190,210,255,.6);background:rgba(120,150,255,.16);color:#fff;font:600 1rem system-ui,sans-serif;letter-spacing:.06em;padding:14px 32px;border-radius:40px;cursor:pointer;box-shadow:0 0 24px rgba(120,150,255,.35);animation:late 2.2s ease-in-out infinite}
+  @keyframes late{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+  #intro .estrellita{font-size:2rem;animation:late 1.8s ease-in-out infinite}
+  #cargando{position:fixed;inset:0;z-index:40;background:#000;display:flex;align-items:center;justify-content:center;color:#9fb3e8;letter-spacing:.14em;font-size:.8rem;transition:opacity .8s,visibility .8s}
+  #cargando.fuera{opacity:0;visibility:hidden}
+
+  #frase{position:fixed;left:50%;bottom:max(9vh,calc(30px + env(safe-area-inset-bottom)));transform:translateX(-50%);width:min(92vw,720px);text-align:center;z-index:6;pointer-events:none;font-family:'Dancing Script','Segoe Script',cursive;font-weight:700;font-size:clamp(1.25rem,5.2vw,2.3rem);line-height:1.2;color:#f2f5ff;text-shadow:0 0 12px rgba(150,180,255,.9),0 0 34px rgba(110,140,255,.55),0 2px 4px rgba(0,0,0,.9);opacity:0;transition:opacity 2.6s}
+  #frase.on{opacity:1}
+  #frase small{display:block;margin-top:.4em;font-size:.62em;opacity:.85}
+  #pista{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:5;font-size:.78rem;color:#b9c8f5;text-shadow:0 1px 6px #000;opacity:0;transition:opacity 1.6s;pointer-events:none;white-space:nowrap}
+  #pista.on{opacity:.9}
+  /* barras de cine: aparecen durante la secuencia y se retiran al final */
+  #barraSup,#barraInf{position:fixed;left:0;right:0;height:0;background:#000;z-index:7;pointer-events:none;transition:height 2.6s cubic-bezier(.6,0,.2,1)}
+  #barraSup{top:0} #barraInf{bottom:0}
+  body.cine #barraSup, body.cine #barraInf{height:12vh}
+  #frase{z-index:8}
+  #repetir{position:fixed;left:max(14px,env(safe-area-inset-left));top:max(14px,env(safe-area-inset-top));z-index:9;border:1px solid rgba(190,210,255,.45);background:rgba(10,16,40,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fff;border-radius:22px;padding:10px 16px;font:600 .8rem system-ui,sans-serif;cursor:pointer;opacity:0;pointer-events:none;transition:opacity 1.2s}
+  #repetir.on{opacity:1;pointer-events:auto}
+  #musica{position:fixed;right:max(14px,env(safe-area-inset-right));top:max(14px,env(safe-area-inset-top));z-index:9;width:44px;height:44px;border-radius:50%;border:1px solid rgba(190,210,255,.45);background:rgba(10,16,40,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fff;font-size:1.1rem;cursor:pointer;display:none}
+</style>
+</head>
+<body>
+
+<div id="cargando">PREPARANDO EL CIELO…</div>
+
+<div id="intro">
+  <div class="estrellita">✦</div>
+  <div class="nombre" id="introNombre"></div>
+  <p id="introTxt"></p>
+  <button id="empezar">Mirar el cielo</button>
+</div>
+
+<div id="barraSup"></div><div id="barraInf"></div>
+<button id="repetir">↻ Ver otra vez</button>
+<div id="frase"></div>
+<div id="pista">Toca el cielo para pedir un deseo · arrastra para mirar</div>
+<button id="musica" aria-label="Música">🎵</button>
+<audio id="audio" loop preload="none"></audio>
+
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+/* ============================================================
+   PERSONALIZA AQUÍ  (todo lo demás no hace falta tocarlo)
+   ============================================================ */
+const CONFIG = {
+  nombre: "Katherine",                         // el nombre que se escribe con estrellas
+  fuente: "Great Vibes",                       // letra cursiva del nombre
+  intro: "Hay algo escrito para ti en el cielo.",
+  frase: "",                                  // opcional: un mensaje que aparece al terminar (vacío = solo el nombre)
+  firma: "",                                   // por ejemplo "— Diego"  (vacío = sin firma)
+  musica: "https://assets.mixkit.co/music/599/599.mp3",   // "Possible Dreams" (Mixkit, gratis). Pon "" para quitarla o un mp3 propio.
+  volumen: 0.5
+};
+/* ============================================================ */
+
+const MOVIL = Math.min(innerWidth, innerHeight) < 700 || /Android|iPhone|iPad/i.test(navigator.userAgent) || matchMedia('(pointer: coarse)').matches;
+const $ = id => document.getElementById(id);
+const TAU = Math.PI*2;
+let _s = 20260314;
+const rnd = () => { _s |= 0; _s = _s + 0x6D2B79F5 | 0; let t = Math.imul(_s ^ _s >>> 15, 1 | _s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const gauss = () => { let u = 0, v = 0; while(!u) u = rnd(); while(!v) v = rnd(); return Math.sqrt(-2*Math.log(u))*Math.cos(TAU*v); };
+const sstep = (a,b,x)=>{ const t=Math.min(1,Math.max(0,(x-a)/(b-a))); return t*t*(3-2*t); };
+
+document.title = `${CONFIG.nombre}, mira el cielo`;
+$('introNombre').textContent = CONFIG.nombre;
+$('introTxt').textContent = CONFIG.intro;
+$('frase').innerHTML = CONFIG.frase + (CONFIG.firma ? `<small>${CONFIG.firma}</small>` : '');
+
+/* ---- colores de estrella según temperatura: 0 rojiza · .5 blanca · 1 azul ---- */
+const PARADAS = [[0,[1,.55,.35]],[.3,[1,.82,.6]],[.55,[1,.96,.9]],[.8,[.82,.88,1]],[1,[.62,.74,1]]];
+function colorTemp(t){
+  t = Math.min(1, Math.max(0, t));
+  for(let i=1;i<PARADAS.length;i++) if(t <= PARADAS[i][0]){ const [t0,a]=PARADAS[i-1], [t1,b]=PARADAS[i], k=(t-t0)/(t1-t0); return [a[0]+(b[0]-a[0])*k, a[1]+(b[1]-a[1])*k, a[2]+(b[2]-a[2])*k]; }
+  return PARADAS[PARADAS.length-1][1];
+}
+
+/* =========================================================================
+   El nombre se dibuja en un lienzo oculto y de ahí se sacan las posiciones de las estrellas
+   ========================================================================= */
+const ANCHO_NOMBRE = 30;                           // ancho del nombre en el cielo (unidades)
+async function puntosDelNombre(){
+  try{ await document.fonts.load(`200px "${CONFIG.fuente}"`); }catch(e){}
+  const tam = 260, fam = `"${CONFIG.fuente}", "Brush Script MT", "Segoe Script", cursive`;
+  const c = document.createElement('canvas'), x = c.getContext('2d');
+  x.font = `${tam}px ${fam}`;
+  const w = Math.ceil(x.measureText(CONFIG.nombre).width) + 120, h = Math.ceil(tam*1.9);
+  c.width = w; c.height = h;
+  x.font = `${tam}px ${fam}`; x.fillStyle = '#fff'; x.strokeStyle = '#fff'; x.lineWidth = 13; x.lineJoin = 'round'; x.textBaseline = 'alphabetic';
+  x.fillText(CONFIG.nombre, 60, tam*1.3); x.strokeText(CONFIG.nombre, 60, tam*1.3);
+  const d = x.getImageData(0,0,w,h).data, paso = MOVIL ? 6 : 4, pts = [];
+  for(let y=0;y<h;y+=paso) for(let xx=0;xx<w;xx+=paso){
+    const jx = Math.min(w-1, xx + rnd()*paso), jy = Math.min(h-1, y + rnd()*paso);
+    if(d[((jy|0)*w + (jx|0))*4 + 3] > 140) pts.push([jx, jy]);
+  }
+  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9; pts.forEach(([a,b])=>{ minX=Math.min(minX,a); maxX=Math.max(maxX,a); minY=Math.min(minY,b); maxY=Math.max(maxY,b); });
+  const k = ANCHO_NOMBRE/(maxX-minX), cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+  return { pts: pts.map(([a,b]) => [(a-cx)*k, -(b-cy)*k]), ancho:(maxX-minX)*k, alto:(maxY-minY)*k };
+}
+
+/* =========================================================================
+   RENDER (HDR + brillo + grado fotográfico)
+   ========================================================================= */
+const renderer = new THREE.WebGLRenderer({ antialias:false, powerPreference:'high-performance', alpha:false });
+const pr = Math.min(devicePixelRatio||1, MOVIL ? 1.75 : 2);
+renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight); renderer.setClearColor(0x000003, 1);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 2000);
+camera.position.set(0, 0, 46);                       // posición válida desde el inicio (evita errores si la ventana cambia de tamaño al cargar)
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06; controls.enablePan = false;
+controls.rotateSpeed = 0.45; controls.zoomSpeed = 0.9;
+controls.minAzimuthAngle = -0.75; controls.maxAzimuthAngle = 0.75;
+controls.minPolarAngle = Math.PI/2 - 0.42; controls.maxPolarAngle = Math.PI/2 + 0.42;
+
+const uniformsComunes = { uTime:{value:0}, uScale:{value:1}, uForm:{value:0}, uPulso:{value:0}, uBright:{value:1} };
+
+/* ---- Estrellas: cada una viaja desde un punto del cielo hasta su sitio en el nombre ---- */
+const VERT = `
+  uniform float uTime, uScale, uForm, uPulso, uBright, uMinPx;
+  attribute vec3 aPos0, aPos1; attribute vec4 aColor; attribute float aSize, aDelay, aPhase;
+  varying vec4 vColor; varying float vSpike;
+  void main(){
+    float u = clamp((uForm - aDelay*0.70) / 0.30, 0.0, 1.0); u = u*u*(3.0 - 2.0*u);
+    vec3 p = mix(aPos0, aPos1, u);
+    p += (1.0 - u) * 0.55 * vec3(sin(uTime*0.30 + aPhase), cos(uTime*0.27 + aPhase*1.3), sin(uTime*0.21 + aPhase*0.7));
+    p += u * 0.035 * vec3(sin(uTime*1.1 + aPhase*3.0), cos(uTime*0.9 + aPhase*2.0), 0.0);
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    float dist = max(-mv.z, 0.0001);
+    float tw = 0.72 + 0.28*sin(uTime*(1.4 + aPhase*0.35) + aPhase*6.0);
+    float px = aSize * uScale / dist * (1.0 + uPulso*0.5*u);
+    float a = aColor.a * tw * uBright * (1.0 + uPulso*u*1.2);
+    if (px < uMinPx) { a *= px/uMinPx; px = uMinPx; }
+    gl_PointSize = min(px, 150.0);
+    gl_Position = projectionMatrix * mv;
+    vColor = vec4(aColor.rgb, a);
+    vSpike = smoothstep(0.42, 0.7, aSize);
+  }`;
+const FRAG = `
+  varying vec4 vColor; varying float vSpike;
+  void main(){
+    vec2 c = (gl_PointCoord - 0.5) * 2.0; float r = length(c);
+    float glow = exp(-r*r*7.5), core = exp(-r*r*42.0);
+    float sp = 0.0;
+    if (vSpike > 0.01) sp = (exp(-abs(c.x)*60.0)*exp(-abs(c.y)*3.0) + exp(-abs(c.y)*60.0)*exp(-abs(c.x)*3.0)) * vSpike;
+    float al = (glow + core*1.1 + sp*0.9) * vColor.a * (1.0 - smoothstep(0.85, 1.0, r));
+    if (al < 0.002) discard;
+    gl_FragColor = vec4(mix(vColor.rgb, vec3(1.0), core*0.6 + sp*0.4), al);
+  }`;
+const matEstrellas = new THREE.ShaderMaterial({
+  vertexShader: VERT, fragmentShader: FRAG,
+  uniforms: { ...uniformsComunes, uMinPx:{value: 2.0*pr} },
+  transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending
+});
+
+/* ---- Líneas finas que unen las estrellas del nombre, como una constelación ---- */
+const VERT_LINEA = `
+  uniform float uTime, uForm;
+  attribute vec3 aPos0, aPos1; attribute float aDelay, aPhase;
+  varying float vU;
+  void main(){
+    float u = clamp((uForm - aDelay*0.70) / 0.30, 0.0, 1.0); u = u*u*(3.0 - 2.0*u);
+    vec3 p = mix(aPos0, aPos1, u);
+    p += (1.0 - u) * 0.55 * vec3(sin(uTime*0.30 + aPhase), cos(uTime*0.27 + aPhase*1.3), sin(uTime*0.21 + aPhase*0.7));
+    p += u * 0.035 * vec3(sin(uTime*1.1 + aPhase*3.0), cos(uTime*0.9 + aPhase*2.0), 0.0);
+    vU = u;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+  }`;
+const FRAG_LINEA = `
+  uniform float uForm, uPulso; varying float vU;
+  void main(){ float a = vU*vU*sstep_(uForm) * (0.30 + uPulso*0.35); gl_FragColor = vec4(0.62, 0.76, 1.0, a); }`
+  .replace('sstep_(uForm)', 'smoothstep(0.80, 1.0, uForm)');
+const matLinea = new THREE.ShaderMaterial({
+  vertexShader: VERT_LINEA, fragmentShader: FRAG_LINEA,
+  uniforms: { uTime:uniformsComunes.uTime, uForm:uniformsComunes.uForm, uPulso:uniformsComunes.uPulso },
+  transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending
+});
+
+/* ---- Estelas: mientras vuela cada estrella deja un rastro de luz (efecto de movimiento, como en un video) ---- */
+const VERT_ESTELA = `
+  uniform float uTime, uForm;
+  attribute vec3 aPos0, aPos1; attribute float aDelay, aPhase, aTail; varying float vA;
+  float uEn(float f){ float u = clamp((f - aDelay*0.70) / 0.30, 0.0, 1.0); return u*u*(3.0 - 2.0*u); }
+  void main(){
+    float u = uEn(uForm - aTail*0.034);
+    vec3 p = mix(aPos0, aPos1, u);
+    p += (1.0 - u) * 0.55 * vec3(sin(uTime*0.30 + aPhase), cos(uTime*0.27 + aPhase*1.3), sin(uTime*0.21 + aPhase*0.7));
+    float vuelo = smoothstep(0.02, 0.22, uEn(uForm)) * (1.0 - smoothstep(0.80, 1.0, uEn(uForm)));
+    vA = (1.0 - aTail) * vuelo * 0.42;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+  }`;
+const FRAG_ESTELA = `varying float vA; void main(){ gl_FragColor = vec4(0.78, 0.88, 1.0, vA); }`;
+const matEstela = new THREE.ShaderMaterial({
+  vertexShader: VERT_ESTELA, fragmentShader: FRAG_ESTELA,
+  uniforms: { uTime:uniformsComunes.uTime, uForm:uniformsComunes.uForm },
+  transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending
+});
+
+/* ---- La "pluma": una luz brillante que va escribiendo el nombre y suelta chispas ---- */
+const VERT_PLUMA = `
+  uniform float uScale; attribute vec3 aPos; attribute vec4 aColor; attribute float aSize;
+  varying vec4 vColor; varying float vSpike;
+  void main(){
+    vec4 mv = modelViewMatrix * vec4(aPos, 1.0); float dist = max(-mv.z, 0.0001);
+    gl_PointSize = min(max(aSize * uScale / dist, 2.0), 240.0);
+    gl_Position = projectionMatrix * mv; vColor = aColor; vSpike = smoothstep(0.42, 0.7, aSize);
+  }`;
+const matPluma = new THREE.ShaderMaterial({
+  vertexShader: VERT_PLUMA, fragmentShader: FRAG, uniforms: { uScale: uniformsComunes.uScale },
+  transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending
+});
+function crearPluma(colY){
+  const NP = 40, pos = new Float32Array(NP*3), col = new Float32Array(NP*4), tam = new Float32Array(NP);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(NP*3),3));
+  const aP = new THREE.BufferAttribute(pos,3).setUsage(THREE.DynamicDrawUsage), aC = new THREE.BufferAttribute(col,4).setUsage(THREE.DynamicDrawUsage), aS = new THREE.BufferAttribute(tam,1).setUsage(THREE.DynamicDrawUsage);
+  g.setAttribute('aPos', aP); g.setAttribute('aColor', aC); g.setAttribute('aSize', aS);
+  const obj = new THREE.Points(g, matPluma); obj.frustumCulled = false; obj.renderOrder = 6; obj.visible = false; scene.add(obj);
+  const chispas = Array.from({length:NP-1}, () => ({ x:0, y:0, z:0, vx:0, vy:0, vida:0, tam:0.2 }));
+  let sig = 0, acum = 0;
+  const yEn = xn => { const k = Math.min(colY.length-1, Math.max(0, xn*(colY.length-1))), a = Math.floor(k), b = Math.min(colY.length-1, a+1); return colY[a] + (colY[b]-colY[a])*(k-a); };
+  return {
+    obj,
+    actualizar(visible, xn, dt, t){
+      obj.visible = visible; if(!visible) return;
+      const hx = (xn-0.5)*ANCHO_NOMBRE, hy = yEn(xn) + Math.sin(t*8.5)*0.55;
+      pos.set([hx, hy, 0.4], 0); col.set([1, 0.97, 0.88, 1], 0); tam[0] = 1.5;
+      acum += dt*70;
+      while(acum >= 1){ acum -= 1; const c = chispas[sig++ % chispas.length]; c.x = hx + gauss()*0.15; c.y = hy + gauss()*0.15; c.z = 0.3; c.vx = gauss()*0.9 - 0.8; c.vy = gauss()*0.9 - 0.5; c.vida = 1; c.tam = 0.16 + rnd()*0.26; }
+      chispas.forEach((c,i) => {
+        c.vida = Math.max(0, c.vida - dt/1.15); c.x += c.vx*dt; c.y += c.vy*dt; c.vy -= dt*1.2;
+        const o = i+1; pos.set([c.x,c.y,c.z], o*3);
+        col.set([1, 0.88 + 0.1*rnd(), 0.62 + 0.3*c.vida, c.vida*c.vida*0.95], o*4); tam[o] = c.tam*(0.5 + 0.5*c.vida);
+      });
+      aP.needsUpdate = aC.needsUpdate = aS.needsUpdate = true;
+    }
+  };
+}
+
+/* =========================================================================
+   Construcción del cielo
+   ========================================================================= */
+function dispersion(){                                      // un punto cualquiera del cielo cercano
+  return [ (rnd()*2-1)*58, (rnd()*2-1)*34, -34 + rnd()*62 ];
+}
+async function construirNombre(){
+  const { pts, ancho, alto } = await puntosDelNombre();
+  const N = pts.length;
+  /* estrellas "importantes" (más grandes): se reparten parejo por todo el nombre */
+  const M = Math.min(N, MOVIL ? 52 : 78), nodos = [];
+  let mejor = Math.floor(rnd()*N); nodos.push(mejor);
+  const dmin = new Float32Array(N).fill(1e9);
+  while(nodos.length < M){
+    let lej = -1, dlej = -1;
+    for(let i=0;i<N;i++){
+      const dx = pts[i][0]-pts[nodos[nodos.length-1]][0], dy = pts[i][1]-pts[nodos[nodos.length-1]][1], d = dx*dx+dy*dy;
+      if(d < dmin[i]) dmin[i] = d;
+      if(dmin[i] > dlej){ dlej = dmin[i]; lej = i; }
+    }
+    nodos.push(lej);
+  }
+  const esNodo = new Uint8Array(N); nodos.forEach(i => esNodo[i] = 1);
+
+  const pos0 = new Float32Array(N*3), pos1 = new Float32Array(N*3), col = new Float32Array(N*4), tam = new Float32Array(N), del = new Float32Array(N), fas = new Float32Array(N);
+  const minX = -ancho/2;
+  for(let i=0;i<N;i++){
+    const [x,y] = pts[i], d0 = dispersion();
+    pos0.set(d0, i*3); pos1.set([x, y, gauss()*0.12], i*3);
+    const nodo = esNodo[i], c = colorTemp(nodo ? 0.45 + 0.5*rnd() : 0.35 + 0.6*rnd());
+    col.set([c[0],c[1],c[2], nodo ? 0.95 : 0.35 + 0.45*rnd()], i*4);
+    tam[i] = nodo ? 0.62 + 0.40*rnd() : 0.15 + 0.20*rnd();
+    del[i] = Math.min(1, Math.max(0, (x - minX)/ancho*0.92 + rnd()*0.08));   // el nombre se "escribe" de izquierda a derecha
+    fas[i] = rnd()*TAU;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N*3),3));
+  g.setAttribute('aPos0', new THREE.BufferAttribute(pos0,3)); g.setAttribute('aPos1', new THREE.BufferAttribute(pos1,3));
+  g.setAttribute('aColor', new THREE.BufferAttribute(col,4)); g.setAttribute('aSize', new THREE.BufferAttribute(tam,1));
+  g.setAttribute('aDelay', new THREE.BufferAttribute(del,1)); g.setAttribute('aPhase', new THREE.BufferAttribute(fas,1));
+  const puntos = new THREE.Points(g, matEstrellas); puntos.frustumCulled = false; puntos.renderOrder = 3;
+  scene.add(puntos);
+
+  /* constelación: cada estrella importante se une con sus 2 vecinas más cercanas */
+  const maxLong = ANCHO_NOMBRE * 0.16, visto = new Set(), seg = [];
+  nodos.forEach(a => {
+    const vec = nodos.filter(b => b !== a).map(b => [b, Math.hypot(pts[a][0]-pts[b][0], pts[a][1]-pts[b][1])]).sort((p,q) => p[1]-q[1]).slice(0,2);
+    vec.forEach(([b,dist]) => { const kk = a<b ? a+'-'+b : b+'-'+a; if(dist < maxLong && !visto.has(kk)){ visto.add(kk); seg.push([a,b]); } });
+  });
+  const L = seg.length*2, lp0 = new Float32Array(L*3), lp1 = new Float32Array(L*3), ld = new Float32Array(L), lf = new Float32Array(L);
+  seg.forEach(([a,b], i) => [a,b].forEach((idx, j) => { const o = i*2+j; lp0.set(pos0.subarray(idx*3, idx*3+3), o*3); lp1.set(pos1.subarray(idx*3, idx*3+3), o*3); ld[o] = del[idx]; lf[o] = fas[idx]; }));
+  const gl = new THREE.BufferGeometry();
+  gl.setAttribute('position', new THREE.BufferAttribute(new Float32Array(L*3),3));
+  gl.setAttribute('aPos0', new THREE.BufferAttribute(lp0,3)); gl.setAttribute('aPos1', new THREE.BufferAttribute(lp1,3));
+  gl.setAttribute('aDelay', new THREE.BufferAttribute(ld,1)); gl.setAttribute('aPhase', new THREE.BufferAttribute(lf,1));
+  const lineas = new THREE.LineSegments(gl, matLinea); lineas.frustumCulled = false; lineas.renderOrder = 2; scene.add(lineas);
+
+  /* estelas: un segmento (cabeza → cola) por estrella */
+  const E = N*2, e0 = new Float32Array(E*3), e1 = new Float32Array(E*3), ed = new Float32Array(E), ef = new Float32Array(E), et = new Float32Array(E);
+  for(let i=0;i<N;i++) for(let j=0;j<2;j++){ const o = i*2+j; e0.set(pos0.subarray(i*3,i*3+3), o*3); e1.set(pos1.subarray(i*3,i*3+3), o*3); ed[o] = del[i]; ef[o] = fas[i]; et[o] = j; }
+  const ge = new THREE.BufferGeometry();
+  ge.setAttribute('position', new THREE.BufferAttribute(new Float32Array(E*3),3));
+  ge.setAttribute('aPos0', new THREE.BufferAttribute(e0,3)); ge.setAttribute('aPos1', new THREE.BufferAttribute(e1,3));
+  ge.setAttribute('aDelay', new THREE.BufferAttribute(ed,1)); ge.setAttribute('aPhase', new THREE.BufferAttribute(ef,1)); ge.setAttribute('aTail', new THREE.BufferAttribute(et,1));
+  const estelas = new THREE.LineSegments(ge, matEstela); estelas.frustumCulled = false; estelas.renderOrder = 2; scene.add(estelas);
+
+  /* altura media del nombre en cada columna (para que la pluma siga el trazo) */
+  const B = 90, suma = new Float32Array(B), cuenta = new Float32Array(B);
+  pts.forEach(([x,y]) => { const b = Math.min(B-1, Math.max(0, Math.floor((x - minX)/ancho*B))); suma[b] += y; cuenta[b]++; });
+  const colY = Array.from({length:B}, (_,b) => cuenta[b] ? suma[b]/cuenta[b] : null);
+  for(let b=0;b<B;b++) if(colY[b] === null){ let l=b, r=b; while(l>=0 && colY[l]===null) l--; while(r<B && colY[r]===null) r++; colY[b] = l<0 ? colY[r] : r>=B ? colY[l] : colY[l] + (colY[r]-colY[l])*(b-l)/(r-l); }
+  const suave = colY.map((v,b) => { let s=0,n=0; for(let k=-2;k<=2;k++){ const q = colY[Math.min(B-1,Math.max(0,b+k))]; s+=q; n++; } return s/n; });
+
+  return { N, ancho, alto, nodos: nodos.length, lineas: seg.length, colY: suave };
+}
+
+/* estrellas sueltas que flotan alrededor (dan profundidad) */
+function construirFlotantes(){
+  const N = MOVIL ? 900 : 2200, pos = new Float32Array(N*3), col = new Float32Array(N*4), tam = new Float32Array(N), del = new Float32Array(N).fill(2), fas = new Float32Array(N);
+  for(let i=0;i<N;i++){
+    pos.set(dispersion().map((v,k)=> k===2 ? v*1.2 : v*1.15), i*3);
+    const c = colorTemp(rnd()), b = Math.pow(rnd(),2.2);
+    col.set([c[0],c[1],c[2], 0.15 + 0.6*b], i*4); tam[i] = 0.1 + 0.32*b; fas[i] = rnd()*TAU;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N*3),3));
+  g.setAttribute('aPos0', new THREE.BufferAttribute(pos,3)); g.setAttribute('aPos1', new THREE.BufferAttribute(pos,3));
+  g.setAttribute('aColor', new THREE.BufferAttribute(col,4)); g.setAttribute('aSize', new THREE.BufferAttribute(tam,1));
+  g.setAttribute('aDelay', new THREE.BufferAttribute(del,1)); g.setAttribute('aPhase', new THREE.BufferAttribute(fas,1));
+  const p = new THREE.Points(g, matEstrellas); p.frustumCulled = false; p.renderOrder = 1; scene.add(p);
+}
+
+/* cielo profundo: miles de estrellas lejanas, la banda de la Vía Láctea y resplandores de nebulosa */
+function texturaRedonda(){
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+  const g = x.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(.16,'rgba(255,255,255,.8)'); g.addColorStop(.5,'rgba(255,255,255,.18)'); g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0,0,64,64); return new THREE.CanvasTexture(c);
+}
+function construirFondo(){
+  const tex = texturaRedonda(), n = MOVIL ? 14000 : 34000, pos = new Float32Array(n*3), col = new Float32Array(n*3);
+  const normal = new THREE.Vector3(0.35, 0.82, 0.45).normalize();              // plano de la banda de la Vía Láctea
+  for(let i=0;i<n;i++){
+    let v;
+    if(rnd() < 0.55){                                                           // estrellas concentradas en la banda
+      const a = rnd()*TAU, u = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), normal);
+      v = u.applyQuaternion(q).addScaledVector(normal, gauss()*0.17).normalize();
+    } else { const cosf = rnd()*2-1, s = Math.sqrt(1-cosf*cosf), az = rnd()*TAU; v = new THREE.Vector3(s*Math.cos(az), cosf, s*Math.sin(az)); }
+    pos[i*3]=v.x*900; pos[i*3+1]=v.y*900; pos[i*3+2]=v.z*900;
+    const c = colorTemp(rnd()), b = 0.18 + 0.82*Math.pow(rnd(), 3.4);
+    col[i*3]=c[0]*b; col[i*3+1]=c[1]*b; col[i*3+2]=c[2]*b;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3)); g.setAttribute('color', new THREE.BufferAttribute(col,3));
+  const fondo = new THREE.Points(g, new THREE.PointsMaterial({ size:2.4*pr, map:tex, sizeAttenuation:false, vertexColors:true, transparent:true, opacity:.95, depthWrite:false, depthTest:false }));
+  fondo.renderOrder = -3; fondo.frustumCulled = false; scene.add(fondo);
+
+  /* resplandores de nebulosa, muy suaves, detrás del nombre */
+  const nebu = [[ -170, 60,-330, 0,[.35,.30,.95],.10 ],[ 150,-50,-340, 0,[.95,.35,.65],.08 ],[ 60, 120,-310, 0,[.25,.55,1],.08 ],[ -110,-95,-360, 0,[.7,.35,1],.07],[ 230, 50,-380, 0,[.3,.4,1],.06]];
+  const pg = new THREE.BufferGeometry(), pp = new Float32Array(nebu.length*3), pc = new Float32Array(nebu.length*3);
+  nebu.forEach((n,i)=>{ pp.set([n[0],n[1],n[2]], i*3); pc.set(n[4].map(v=>v*n[5]*1.5), i*3); });
+  pg.setAttribute('position', new THREE.BufferAttribute(pp,3)); pg.setAttribute('color', new THREE.BufferAttribute(pc,3));
+  /* textura MUY suave (sin borde) para que sean resplandores difusos y no bolas */
+  const cs = document.createElement('canvas'); cs.width = cs.height = 128; const xs = cs.getContext('2d');
+  const gs = xs.createRadialGradient(64,64,0,64,64,64);
+  for(let s=0;s<=10;s++){ const t=s/10; gs.addColorStop(t, `rgba(255,255,255,${Math.pow(1-t,2.6).toFixed(3)})`); }
+  xs.fillStyle = gs; xs.fillRect(0,0,128,128);
+  const neb = new THREE.Points(pg, new THREE.PointsMaterial({ size:640*pr, map:new THREE.CanvasTexture(cs), sizeAttenuation:true, vertexColors:true, transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending }));
+  neb.renderOrder = -2; neb.frustumCulled = false; scene.add(neb);
+}
+
+/* ---- estrellas fugaces ---- */
+const gradFugaz = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 16; const x = c.getContext('2d');
+  const g = x.createLinearGradient(0,0,256,0); g.addColorStop(0,'rgba(255,255,255,0)'); g.addColorStop(.75,'rgba(190,215,255,.55)'); g.addColorStop(1,'rgba(255,255,255,1)');
+  x.fillStyle = g; x.beginPath(); x.moveTo(0,8); x.lineTo(256,2); x.lineTo(256,14); x.closePath(); x.fill(); return new THREE.CanvasTexture(c); })();
+const fugaces = [];
+for(let i=0;i<5;i++){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(9, 0.28), new THREE.MeshBasicMaterial({ map:gradFugaz, transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending, opacity:0 }));
+  m.renderOrder = 4; m.frustumCulled = false; m.visible = false; scene.add(m); fugaces.push({ m, t:1, v:new THREE.Vector3() });
+}
+function disparar(){
+  const f = fugaces.find(o => o.t >= 1); if(!f) return;
+  const ang = -0.35 - rnd()*0.35, sentido = rnd() < 0.5 ? 1 : -1, vel = 55 + rnd()*30;
+  f.v.set(Math.cos(ang)*sentido, Math.sin(ang), 0).multiplyScalar(vel);
+  f.m.position.set(-sentido*(28 + rnd()*20), 14 + rnd()*14, -20 + rnd()*8);
+  f.m.rotation.z = Math.atan2(f.v.y, f.v.x); f.t = 0; f.m.visible = true;
+}
+let proxFugaz = 4;
+
+/* =========================================================================
+   Post-proceso
+   ========================================================================= */
+const rt = new THREE.WebGLRenderTarget(innerWidth*pr, innerHeight*pr, { type: THREE.HalfFloatType, samples: MOVIL ? 0 : 4, depthBuffer:false });
+const composer = new EffectComposer(renderer, rt);
+composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), MOVIL ? 0.7 : 0.85, 0.6, 0.12);   // la fuerza se anima en cuadro()
+composer.addPass(bloom);
+const gradPass = new ShaderPass({
+  uniforms:{ tDiffuse:{value:null}, uTime:{value:0}, uRes:{value:new THREE.Vector2(1,1)} },
+  vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`
+    uniform sampler2D tDiffuse; uniform float uTime; uniform vec2 uRes; varying vec2 vUv;
+    float h(vec2 p){ p=fract(p*vec2(443.897,441.423)); p+=dot(p,p+19.19); return fract(p.x*p.y); }
+    void main(){
+      vec3 c = max(texture2D(tDiffuse, vUv).rgb, 0.0);
+      float m = max(c.r, max(c.g, c.b)); float mm = 1.0 - exp(-m*1.2); c *= mm/max(m,1e-4);
+      c = mix(c, vec3(mm), smoothstep(0.8,1.0,mm)*0.4);
+      float l = dot(c, vec3(0.2126,0.7152,0.0722)); c = mix(vec3(l), c, 1.15);
+      vec2 q = vUv - 0.5; c *= 1.0 - 0.6*dot(q,q)*1.2;
+      c += (h(vUv*uRes + fract(uTime*0.37)*91.0) - 0.5) * 0.018 * (1.0 - clamp(l*2.0,0.0,1.0)*0.7);
+      gl_FragColor = vec4(max(c,0.0), 1.0);
+    }`
+});
+composer.addPass(gradPass);
+
+/* ---- encuadre: el nombre siempre cabe en la pantalla (también en vertical) ---- */
+let distBase = 46;
+function dimensiones(){
+  const w = innerWidth, h = innerHeight;
+  if(!w || !h) return;                                                       // ventana todavía sin tamaño: se reintenta al cambiar
+  renderer.setSize(w,h); composer.setPixelRatio(pr); composer.setSize(w,h);
+  camera.aspect = w/h; camera.updateProjectionMatrix();
+  const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov/2)), tanH = tanV * camera.aspect;
+  distBase = (ANCHO_NOMBRE/0.84/2) / tanH;                                  // el nombre ocupa ~84% del ancho
+  distBase = Math.max(distBase, (ANCHO_NOMBRE*0.42/0.55/2) / tanV);         // y no pasa del ~55% del alto
+  if(!isFinite(distBase)) distBase = 46;
+  controls.minDistance = distBase*0.55; controls.maxDistance = distBase*1.7;
+  if(!isFinite(camera.position.x + camera.position.y + camera.position.z) || camera.position.lengthSq() === 0) camera.position.set(0, 0, distBase);
+  const d = camera.position.length();
+  camera.position.setLength(Math.min(controls.maxDistance, Math.max(controls.minDistance, d)));
+  uniformsComunes.uScale.value = (h*pr) / (2*tanV);
+  gradPass.uniforms.uRes.value.set(w*pr, h*pr);
+}
+addEventListener('resize', () => { dimensiones(); controls.update(); });
+
+/* =========================================================================
+   Bucle y secuencia
+   ========================================================================= */
+/* La secuencia dura ~26 s, lenta y romántica, como un video:
+   1) la cámara se desliza entre las estrellas (intro)  2) las estrellas llegan en estela y una luz va escribiendo el nombre
+   3) destello final, aparece la frase y se retiran las barras de cine  4) tú tomas el control */
+let modo = 'espera', tSec = 0, tEstado = 0, tiempo = 0, tPrev = performance.now(), listo = false, destello = false, flash = 0, pluma = null;
+const SEC = { intro: 4.5, forma: 17.0, cierre: 5.0 }, TOTAL = SEC.intro + SEC.forma + SEC.cierre, DUR_DESHACER = 1.6, DUR_REFORMAR = 11.0;
+const bloomBase = MOVIL ? 0.7 : 0.85;
+function ease(x){ return x<.5 ? 4*x*x*x : 1 - Math.pow(-2*x+2,3)/2; }
+const mezcla = lin => lin*0.55 + ease(lin)*0.45;                        // avance del nombre: casi parejo, con arranque y frenado suaves
+const camInicio = () => new THREE.Vector3(-0.34*distBase, 0.12*distBase, 0.58*distBase);
+function empezar(){
+  modo = 'secuencia'; tSec = 0; destello = false; flash = 0;
+  uniformsComunes.uForm.value = 0; uniformsComunes.uPulso.value = 0;
+  controls.enabled = false; document.body.classList.add('cine');
+  $('frase').classList.remove('on'); $('repetir').classList.remove('on');
+  camera.position.copy(camInicio()); camera.lookAt(0,0,0);
+}
+let fDesde = 1;
+function deseo(){
+  if(modo !== 'libre') return;
+  fDesde = uniformsComunes.uForm.value;
+  modo = 'deshacer'; tEstado = 0; uniformsComunes.uPulso.value = 1; flash = 0.8;
+  disparar(); setTimeout(disparar, 220); setTimeout(disparar, 520);
+  $('frase').classList.remove('on');
+}
+function cuadro(now, forzar){
+  if(!listo) return;
+  const dt = forzar ? 0 : Math.max(0, Math.min(0.1, (now - tPrev)/1000)); tPrev = now; tiempo += dt; tEstado += dt;
+  uniformsComunes.uTime.value = tiempo; gradPass.uniforms.uTime.value = tiempo;
+  let f = uniformsComunes.uForm.value, escribiendo = false;
+
+  if(modo === 'secuencia'){
+    tSec += dt;
+    const lin = Math.min(1, Math.max(0, (tSec - SEC.intro)/SEC.forma));
+    f = mezcla(lin); escribiendo = tSec > SEC.intro && lin < 1;
+    /* cámara: parte cerca y de lado, se aleja flotando hasta el encuadre final */
+    const k = ease(Math.min(1, tSec/TOTAL)), fin = new THREE.Vector3(0, 0, distBase), ini = camInicio();
+    camera.position.lerpVectors(ini, fin, k);
+    camera.position.x += Math.sin(tSec*0.55)*0.035*distBase*(1-k); camera.position.y += Math.cos(tSec*0.42)*0.03*distBase*(1-k);
+    camera.lookAt(0, 0.2*(1-k), 0);
+    if(!destello && lin >= 1){ destello = true; flash = 1; uniformsComunes.uPulso.value = 0.6; $('frase').classList.add('on'); }
+    if(destello && tSec > SEC.intro + SEC.forma + 1.8) document.body.classList.remove('cine');
+    if(tSec >= TOTAL){ modo = 'libre'; controls.enabled = true; controls.update(); $('repetir').classList.add('on'); $('pista').classList.add('on'); setTimeout(() => $('pista').classList.remove('on'), 7000); }
+  }
+  else if(modo === 'deshacer'){ f = fDesde * (1 - ease(Math.min(1, tEstado/DUR_DESHACER))); if(tEstado > DUR_DESHACER){ modo = 'reformar'; tEstado = 0; f = 0; } }
+  else if(modo === 'reformar'){
+    const lin = Math.min(1, tEstado/DUR_REFORMAR); f = mezcla(lin); escribiendo = lin < 1;
+    if(lin >= 1){ modo = 'libre'; flash = 0.7; $('frase').classList.add('on'); }
+  }
+  uniformsComunes.uForm.value = f;
+  uniformsComunes.uPulso.value = Math.max(0, uniformsComunes.uPulso.value - dt*0.55);
+  flash = Math.max(0, flash - dt*0.5); bloom.strength = bloomBase + flash*0.7;
+
+  /* la pluma va escribiendo el nombre de izquierda a derecha */
+  if(pluma){
+    const xn = Math.min(1, Math.max(0, (f - 0.30)/0.70));
+    pluma.actualizar(escribiendo && f > 0.26 && f < 0.995, xn, dt, tiempo);
+  }
+  /* estrellas fugaces */
+  proxFugaz -= dt; if(proxFugaz <= 0 && modo !== 'espera'){ disparar(); proxFugaz = 6 + rnd()*7; }
+  fugaces.forEach(o => { if(o.t < 1){ o.t += dt/0.95; o.m.position.addScaledVector(o.v, dt); o.m.material.opacity = Math.sin(Math.min(1,o.t)*Math.PI); if(o.t >= 1){ o.m.visible = false; o.m.material.opacity = 0; } } });
+  if(modo !== 'secuencia') controls.update();
+  composer.render();
+}
+function bucle(now){ cuadro(now); requestAnimationFrame(bucle); }
+
+/* toque corto sobre el cielo = pedir un deseo */
+{ let abajo = null;
+  renderer.domElement.addEventListener('pointerdown', e => { abajo = { x:e.clientX, y:e.clientY, t:performance.now() }; });
+  renderer.domElement.addEventListener('pointerup', e => {
+    if(!abajo) return; const mov = Math.hypot(e.clientX-abajo.x, e.clientY-abajo.y), dur = performance.now()-abajo.t; abajo = null;
+    if(mov < 10 && dur < 350) deseo();
+  });
+}
+addEventListener('contextmenu', e => e.preventDefault());
+
+/* ---- música ---- */
+const audio = $('audio');
+if(CONFIG.musica){ audio.src = CONFIG.musica; audio.volume = CONFIG.volumen; $('musica').style.display = 'block'; }
+$('musica').onclick = () => { if(audio.paused) audio.play(); else audio.pause(); };
+audio.onplay = () => { $('musica').textContent = '🎵'; }; audio.onpause = () => { $('musica').textContent = '🔇'; };
+
+$('empezar').onclick = () => {
+  $('intro').classList.add('fuera');
+  if(CONFIG.musica) audio.play().catch(()=>{});
+  document.body.classList.add('cine');                           // las barras de cine ya están puestas cuando se abre el telón
+  setTimeout(empezar, 500);
+};
+$('repetir').onclick = () => { empezar(); };
+
+/* ---- arranque ---- */
+(async () => {
+  construirFondo(); construirFlotantes();
+  const info = await construirNombre();
+  dimensiones(); if(!isFinite(distBase)) distBase = 46;
+  camera.position.set(0, 0, distBase); camera.lookAt(0,0,0); controls.target.set(0,0,0); controls.update();
+  pluma = crearPluma(info.colY);
+  listo = true; tPrev = performance.now();
+  window.cielo = { camera, controls, renderer, composer, cuadro, empezar, deseo, uniforms: uniformsComunes, info, SEC, TOTAL,
+    get modo(){ return modo; },
+    saltarA: (u)=>{ modo='libre'; controls.enabled=true; document.body.classList.remove('cine'); uniformsComunes.uForm.value = u; $('frase').classList.add('on'); },
+    irA: (t)=>{ if(modo!=='secuencia') empezar(); tSec = t; cuadro(performance.now(), true); } };
+  requestAnimationFrame(bucle);
+  $('cargando').classList.add('fuera');
+})();
+</script>
+</body>
+</html>
